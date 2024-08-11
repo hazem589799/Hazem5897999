@@ -1,5 +1,4 @@
 import os
-import git
 import tkinter as tk
 from tkinter import filedialog, messagebox
 from openpyxl import load_workbook
@@ -8,9 +7,14 @@ from datetime import datetime
 from collections import Counter
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+import requests
+import zipfile
+import subprocess
+import sys
+import shutil
 
 class ExcelApp:
-    def __init__(self, root, repo_path):
+    def __init__(self, root):
         self.root = root
         self.root.title("برنامج الورشه تم التطوير بواسطة حازم ايمن محمود")
         
@@ -24,11 +28,7 @@ class ExcelApp:
         
         self.gradient_background(self.canvas, '#e6e6fa', '#b0c4de')  # مؤثر التدرج
         
-        self.repo_path = repo_path
         self.file_path = ""
-        
-        # تحقق من التحديثات عند بدء التشغيل
-        self.update_repo()
         
         # زر لاختيار ملف Excel
         self.select_button = tk.Button(self.canvas, text="اختر ملف Excel", command=self.select_file, bg='#b0c4de')
@@ -87,7 +87,13 @@ class ExcelApp:
         # زر لعرض شاشة التعديل والحذف
         self.edit_delete_button = tk.Button(self.canvas, text="تعديل/حذف البيانات", command=self.show_edit_delete, bg='#b0c4de')
         self.edit_delete_button.pack(pady=10)
-    
+
+        # زر لتحديث البرنامج
+
+        self.update_button = tk.Button(self.canvas, text="تحديث البرنامج", command=self.update_program, bg='#b0c4de')
+        self.update_button.pack(pady=10)
+
+
     def gradient_background(self, canvas, color1, color2):
         """Create a gradient background."""
         for i in range(500):
@@ -119,15 +125,6 @@ class ExcelApp:
         scrollbar.pack(side="right", fill="y")
         
         return scrollable_frame
-    
-    def update_repo(self):
-        try:
-            repo = git.Repo(self.repo_path)
-            origin = repo.remotes.origin
-            origin.pull()
-            messagebox.showinfo("تحديث", "تم تحديث البرنامج إلى أحدث إصدار.")
-        except Exception as e:
-            messagebox.showerror("خطأ في التحديث", f"حدث خطأ أثناء التحديث: {e}")
     
     def select_file(self):
         self.file_path = filedialog.askopenfilename(filetypes=[("Excel files", "*.xlsx")])
@@ -204,102 +201,119 @@ class ExcelApp:
             return
         
         try:
-            wb = load_workbook(self.file_path, data_only=True)  # عرض ناتج المعادلات
+            wb = load_workbook(self.file_path)
             sheet = wb.active
             
             technician_name = self.technician_combo.get()
+            parts_count = 0
+            parts_details = []
+            for row in range(2, sheet.max_row + 1):
+                if sheet[f"H{row}"].value == technician_name:
+                    parts_count += 1
+                    parts_details.append({
+                        'name': sheet[f"B{row}"].value,
+                        'price': sheet[f"C{row}"].value
+                    })
+            
+            # إنشاء نافذة جديدة لعرض تفاصيل الفني
             details_window = tk.Toplevel(self.root)
-            details_window.title(f"تفاصيل {technician_name}")
-            details_window.geometry("500x400")
+            details_window.title("تفاصيل الفني")
+            details_window.geometry("400x300")
             
             scrollable_frame = self.add_scroll(details_window)
             
-            part_data = []
-            for row in range(2, sheet.max_row + 1):
-                technician = sheet[f"H{row}"].value
-                if technician == technician_name:
-                    part_code = sheet[f"B{row}"].value
-                    part_name = sheet[f"C{row}"].value
-                    part_price = sheet[f"D{row}"].value
-                    warranty_status = "داخل الضمان" if sheet[f"E{row}"].value else "خارج الضمان"
-                    returned_status = "مرتجع" if sheet[f"G{row}"].value else "غير مرتجع"
-                    date = sheet[f"I{row}"].value
-                    part_data.append((part_code, part_name, part_price, warranty_status, returned_status, date))
+            # عرض تفاصيل الفني
+            count_label = tk.Label(scrollable_frame, text=f"عدد القطع: {parts_count}")
+            count_label.pack(pady=5)
             
-            for data in part_data:
-                part_code, part_name, part_price, warranty_status, returned_status, date = data
-                label = tk.Label(scrollable_frame, text=f"كود: {part_code}, اسم القطعة: {part_name}, السعر: {part_price}, الضمان: {warranty_status}, الحالة: {returned_status}, التاريخ: {date}")
-                label.pack(pady=5)
+            for detail in parts_details:
+                part_label = tk.Label(scrollable_frame, text=f"اسم القطعة: {detail['name']}, السعر: {detail['price']}")
+                part_label.pack(pady=5)
         
         except Exception as e:
-            messagebox.showerror("خطأ", f"حدث خطأ أثناء عرض التفاصيل: {e}")
+            messagebox.showerror("خطأ", f"حدث خطأ أثناء عرض تفاصيل الفني: {e}")
     
     def show_edit_delete(self):
         if not self.file_path:
             messagebox.showerror("خطأ", "يرجى اختيار ملف Excel أولاً")
             return
         
-        edit_delete_window = tk.Toplevel(self.root)
-        edit_delete_window.title("تعديل/حذف البيانات")
-        edit_delete_window.geometry("600x400")
+        try:
+            wb = load_workbook(self.file_path)
+            sheet = wb.active
+            
+            # إنشاء نافذة جديدة لعرض شاشة التعديل والحذف
+            edit_delete_window = tk.Toplevel(self.root)
+            edit_delete_window.title("تعديل/حذف البيانات")
+            edit_delete_window.geometry("600x400")
+            
+            scrollable_frame = self.add_scroll(edit_delete_window)
+            
+            # عرض بيانات التعديل والحذف
+            for row in range(2, sheet.max_row + 1):
+                part_name = sheet[f"B{row}"].value
+                part_price = sheet[f"C{row}"].value
+                
+                # إضافة واجهة التعديل والحذف لكل قطعة
+                label = tk.Label(scrollable_frame, text=f"اسم القطعة: {part_name}, السعر: {part_price}")
+                label.pack(pady=5)
+                delete_button = tk.Button(scrollable_frame, text="حذف", command=lambda r=row: self.delete_data(r))
+                delete_button.pack(pady=5)
+                edit_button = tk.Button(scrollable_frame, text="تعديل", command=lambda r=row: self.edit_data(r))
+                edit_button.pack(pady=5)
         
-        scrollable_frame = self.add_scroll(edit_delete_window)
-        
-        # إنشاء واجهة تعديل/حذف هنا
-        wb = load_workbook(self.file_path, data_only=True)  # استخدام data_only لعرض ناتج المعادلات
-        sheet = wb.active
-        
-        def delete_data(row):
+        except Exception as e:
+            messagebox.showerror("خطأ", f"حدث خطأ أثناء عرض شاشة التعديل والحذف: {e}")
+    
+    def delete_data(self, row):
+        try:
+            wb = load_workbook(self.file_path)
+            sheet = wb.active
+            
+            # حذف البيانات من الصف المحدد
             sheet.delete_rows(row)
+            
             wb.save(self.file_path)
             messagebox.showinfo("نجاح", "تم حذف البيانات بنجاح")
-            edit_delete_window.destroy()
         
-        for row in range(2, sheet.max_row + 1):
-            part_code = sheet[f"B{row}"].value
-            part_name = sheet[f"C{row}"].value
-            part_price = sheet[f"D{row}"].value
-            
-            label = tk.Label(scrollable_frame, text=f"كود: {part_code}, اسم القطعة: {part_name}, السعر: {part_price}")
-            label.grid(row=row, column=0, padx=10, pady=5)
-            
-            edit_button = tk.Button(scrollable_frame, text="تعديل", command=lambda r=row: self.edit_data(r))
-            edit_button.grid(row=row, column=1, padx=10, pady=5)
-            
-            delete_button = tk.Button(scrollable_frame, text="حذف", command=lambda r=row: delete_data(r))
-            delete_button.grid(row=row, column=2, padx=10, pady=5)
+        except Exception as e:
+            messagebox.showerror("خطأ", f"حدث خطأ أثناء حذف البيانات: {e}")
     
     def edit_data(self, row):
-        # يمكن إضافة واجهة تعديل هنا
+        # واجهة التعديل (يمكنك تخصيصها حسب الحاجة)
         edit_window = tk.Toplevel(self.root)
         edit_window.title("تعديل البيانات")
         edit_window.geometry("400x300")
         
-        wb = load_workbook(self.file_path)
-        sheet = wb.active
+        # حقل لتعديل اسم القطعة
+        name_label = tk.Label(edit_window, text="اسم القطعة:")
+        name_label.pack(pady=5)
+        name_entry = tk.Entry(edit_window)
+        name_entry.pack(pady=5)
         
-        part_code = tk.Entry(edit_window)
-        part_code.insert(0, sheet[f"B{row}"].value)
-        part_code.pack(pady=5)
+        # حقل لتعديل سعر القطعة
+        price_label = tk.Label(edit_window, text="سعر القطعة:")
+        price_label.pack(pady=5)
+        price_entry = tk.Entry(edit_window)
+        price_entry.pack(pady=5)
         
-        part_name = tk.Entry(edit_window)
-        part_name.insert(0, sheet[f"C{row}"].value)
-        part_name.pack(pady=5)
-        
-        part_price = tk.Entry(edit_window)
-        part_price.insert(0, sheet[f"D{row}"].value)
-        part_price.pack(pady=5)
-        
-        def save_changes():
-            sheet[f"B{row}"] = part_code.get()
-            sheet[f"C{row}"] = part_name.get()
-            sheet[f"D{row}"] = part_price.get()
-            wb.save(self.file_path)
-            messagebox.showinfo("نجاح", "تم تحديث البيانات بنجاح")
-            edit_window.destroy()
-        
-        save_button = tk.Button(edit_window, text="حفظ التغييرات", command=save_changes)
+        save_button = tk.Button(edit_window, text="حفظ", command=lambda: self.save_edits(row, name_entry.get(), price_entry.get()))
         save_button.pack(pady=10)
+    
+    def save_edits(self, row, new_name, new_price):
+        try:
+            wb = load_workbook(self.file_path)
+            sheet = wb.active
+            
+            # تعديل البيانات في الصف المحدد
+            sheet[f"B{row}"] = new_name
+            sheet[f"C{row}"] = new_price
+            
+            wb.save(self.file_path)
+            messagebox.showinfo("نجاح", "تم حفظ التعديلات بنجاح")
+        
+        except Exception as e:
+            messagebox.showerror("خطأ", f"حدث خطأ أثناء حفظ التعديلات: {e}")
     
     def show_reports(self):
         if not self.file_path:
@@ -310,38 +324,82 @@ class ExcelApp:
             wb = load_workbook(self.file_path)
             sheet = wb.active
             
-            # حساب عدد القطع لكل فني
             technician_count = Counter()
             for row in range(2, sheet.max_row + 1):
                 technician = sheet[f"H{row}"].value
                 if technician:
                     technician_count[technician] += 1
             
-            # إنشاء نافذة جديدة لعرض التقارير مع سكرول
+            # إنشاء نافذة جديدة للتقارير
             report_window = tk.Toplevel(self.root)
             report_window.title("التقارير")
             report_window.geometry("600x400")
             
-            scrollable_frame = self.add_scroll(report_window)
-            
-            # رسم بياني لمقارنة عدد القطع لكل فني
             fig, ax = plt.subplots(figsize=(6, 4))
-            technicians = list(technician_count.keys())
-            counts = list(technician_count.values())
-            ax.bar(technicians, counts, color='lightblue')
-            ax.set_xlabel("الفني")
-            ax.set_ylabel("عدد القطع")
-            ax.set_title("عدد القطع لكل فني")
+            ax.bar(technician_count.keys(), technician_count.values())
+            ax.set_xlabel('اسم الفني')
+            ax.set_ylabel('عدد القطع')
+            ax.set_title('تقرير عدد القطع لكل فني')
             
-            canvas = FigureCanvasTkAgg(fig, master=scrollable_frame)
+            canvas = FigureCanvasTkAgg(fig, master=report_window)
             canvas.draw()
-            canvas.get_tk_widget().pack(fill="both", expand=True)
+            canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
         
         except Exception as e:
             messagebox.showerror("خطأ", f"حدث خطأ أثناء عرض التقارير: {e}")
+    
+    def update_program(self):
+        """Download the latest version of the program and update it."""
+        try:
+            url = "https://github.com/hazem589799/Hazem5897999/archive/refs/heads/main.zip"
+            local_zip_path = "update.zip"
+            new_program_path = "Hazem5897999-main/Hazem.py"
+            
+            # تحميل الملف المضغوط
+            response = requests.get(url)
+            with open(local_zip_path, 'wb') as file:
+                file.write(response.content)
+            
+            # فك ضغط الملف
+            with zipfile.ZipFile(local_zip_path, 'r') as zip_ref:
+                zip_ref.extractall()
+            
+            # تحويل الملف إلى exe
+            subprocess.call([
+                'pyinstaller', '--onefile', '--distpath', '.', '--workpath', '.', '--specpath', '.', new_program_path
+            ])
+            
+            # اسم الملف التنفيذي الجديد
+            exe_file = "Hazem.exe"
+            
+            # الحصول على مسار الملف الأصلي
+            original_path = os.path.abspath(__file__)
+            original_dir = os.path.dirname(original_path)
+            
+            # المسار الجديد للملف التنفيذي
+            new_exe_path = os.path.join(original_dir, exe_file)
+            
+            # حذف النسخة القديمة
+            if os.path.isfile(new_exe_path):
+                os.remove(new_exe_path)
+            
+            # نقل النسخة الجديدة إلى المسار الأصلي
+            shutil.move(os.path.join('.', exe_file), new_exe_path)
+            
+            # حذف الملف المضغوط والتحديث
+            os.remove(local_zip_path)
+            shutil.rmtree('Hazem5897999-main')
+            
+            # إعادة تشغيل البرنامج بالنسخة الجديدة
+            subprocess.call([new_exe_path])
+            self.root.destroy()
+        
+        except Exception as e:
+            messagebox.showerror("خطأ", f"حدث خطأ أثناء تحديث البرنامج: {e}")
+
+        self.update_program()
 
 if __name__ == "__main__":
-    repo_path = os.path.dirname(os.path.abspath(__file__))  # تحديد مسار المستودع
     root = tk.Tk()
-    app = ExcelApp(root, repo_path)
+    app = ExcelApp(root)
     root.mainloop()
