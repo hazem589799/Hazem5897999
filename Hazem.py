@@ -7,6 +7,7 @@ import shutil
 import subprocess
 import zipfile
 import requests
+from tkinter import messagebox
 
 #=====================start to make my main window ============================
 
@@ -50,11 +51,11 @@ try:
     os.remove(local_zip_path)
     shutil.rmtree('Hazem5897999-main')
 
-"""
+
     # إعادة تشغيل البرنامج بالنسخة الجديدة
     subprocess.call([new_exe_path])
     self.root.destroy()
-"""
+
 
 except Exception as e:
     messagebox.showerror("خطأ", f"حدث خطأ أثناء تحديث البرنامج: {e}")
@@ -70,11 +71,13 @@ def enter():
         main_wd.configure(bg='#aed6f1')
         title_label = tk.Label(main_wd , text="بسم الله الرحمن الرحيم" , font=("Calibri" , 18 , "bold") , fg='#6c3483' , bg='#aed6f1')
         title_label.place(x=650 , y=10)
-        wd_frame = Frame(main_wd , width=750 , height=350 , bg='#d4e6f1')
-        wd_frame.place(x=250 , y=70)
         login_wd.withdraw()
-    else:
         main_wd.mainloop()
+
+        
+    else:
+        messagebox.showerror( 'كلمة السر غلط' , 'كلمة السر غلط روح اعرف كلمة السر وتعال حاول تانى')
+        
         
         pass
 login_wd = tk.Tk()
