@@ -9,8 +9,7 @@ import zipfile
 import requests
 from tkinter import messagebox
 
-#=====================start to make my main window ============================ 
-
+#=====================start to make my main window ============================
 try:
     url = "https://github.com/hazem589799/Hazem5897999/archive/refs/heads/main.zip"
     local_zip_path = "update.zip"
@@ -54,12 +53,13 @@ try:
 
     # إعادة تشغيل البرنامج بالنسخة الجديدة
     subprocess.call([new_exe_path])
-    self.root.destroy()
+    login_wd.destroy()
 
 
 except Exception as e:
     messagebox.showerror("خطأ", f"حدث خطأ أثناء تحديث البرنامج: {e}")
-
+def store():
+    pass
 def enter():
     password="30507280201237"
     passwrd = txt_username_login.get()
@@ -71,6 +71,10 @@ def enter():
         main_wd.configure(bg='#aed6f1')
         title_label = tk.Label(main_wd , text="بسم الله الرحمن الرحيم" , font=("Calibri" , 18 , "bold") , fg='#6c3483' , bg='#aed6f1')
         title_label.place(x=650 , y=10)
+        select_program_frame = Frame(main_wd , width=950 , height=550 , bg="#6A6A6A")
+        select_program_frame.place(x=200 , y=60)
+        btn_store = Button(select_program_frame, text="برنامج المخزن" , command=store , bg="red" ,fg="brown" ,width=20 , font=("Calibri" , 18 , "bold") )
+        btn_store.place(x=10 , y=10)                      
         login_wd.withdraw()
         main_wd.mainloop()
 
@@ -89,12 +93,12 @@ title_label.place(x=650 , y=10)
 wd_frame = Frame(login_wd , width=750 , height=350 , bg='#d4e6f1')
 wd_frame.place(x=250 , y=70)
 label_title_login = tk.Label(wd_frame , text="تسجيل الدخول" ,font=("Calibri" , 18 , "bold") , fg='blue' , bg='#d4e6f1')
-label_title_login.place(x=350 , y=10)
+label_title_login.place(x=350 , y=60)
 label_username_login = Label(wd_frame ,text=":من فضلك ادخل كلمة المرور" ,font=("Calibri" , 18 , "bold") , fg='#6e2c00' , bg='#d4e6f1')
 label_username_login.place(x=500, y=150)
 txt_username_login = Entry(wd_frame,show="*" ,width=20 , bg='#fcf3cf' , fg='#ba4a00', font=("Calibri" , 20 , "bold"))
 txt_username_login.place(x=200, y=155)
 btn_user_name = Button(wd_frame , text="دخول" , command=enter , width=18 , height=1 , bg="green" ,fg="white" ,  font=("Calibri" , 16 , "bold"))
 btn_user_name.place(x=250 , y=220)
-
+login_wd.iconbitmap('E:\Programming\My project in python\python database\bin\IMG-20240225-WA0103.ico')
 login_wd.mainloop()
